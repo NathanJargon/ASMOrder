@@ -91,6 +91,11 @@
     defense_up_msg: .asciiz " increased defense by "
     attack_up_msg: .asciiz " increased attack by "
     newline_spaces: .asciiz "\n                         "
+    choose_available_skills: .asciiz "Choose a skill from your selected skills (1-3):\n"
+
+    # Guarding flags
+    player1_guarding: .word 0  # 0 = not guarding, 1 = guarding
+    player2_guarding: .word 0
 
 .text
 main:
@@ -422,84 +427,110 @@ do_attack:
     # Determine attacker and defender
     li $t0, 1
     beq $a0, $t0, player1_attacks
-    
+
     # Player 2 attacks
     la $a0, player2_attack_msg
     li $v0, 4
     syscall
-    
+
     lw $t0, player2_attack  # Attack power
     lw $t1, player1_defense # Defense
-    
+
     # Calculate damage (attack - defense, minimum 1)
     sub $t2, $t0, $t1
     blez $t2, minimal_damage
-    j apply_damage_player1
-    
+
+    # Check if Player 1 is guarding
+    lw $t3, player1_guarding
+    beqz $t3, apply_damage_player1  # If not guarding, apply full damage
+
+    # Reduce damage by half if guarding
+    sra $t2, $t2, 1  # Divide damage by 2 (arithmetic shift right)
+
 minimal_damage:
     li $t2, 1
-    
+
 apply_damage_player1:
     lw $t3, player1_hp
     sub $t3, $t3, $t2
     sw $t3, player1_hp
-    
+
+    # Reset guarding flag for Player 1
+    li $t3, 0
+    sw $t3, player1_guarding
+
     lw $ra, 0($sp)
     addi $sp, $sp, 4
     jr $ra
-    
+
 player1_attacks:
     la $a0, player1_attack_msg
     li $v0, 4
     syscall
-    
+
     lw $t0, player1_attack  # Attack power
     lw $t1, player2_defense # Defense
-    
+
     # Calculate damage (attack - defense, minimum 1)
     sub $t2, $t0, $t1
     blez $t2, minimal_damage2
-    j apply_damage_player2
-    
+
+    # Check if Player 2 is guarding
+    lw $t3, player2_guarding
+    beqz $t3, apply_damage_player2  # If not guarding, apply full damage
+
+    # Reduce damage by half if guarding
+    sra $t2, $t2, 1  # Divide damage by 2 (arithmetic shift right)
+
 minimal_damage2:
     li $t2, 1
-    
+
 apply_damage_player2:
     lw $t3, player2_hp
     sub $t3, $t3, $t2
     sw $t3, player2_hp
-    
+
+    # Reset guarding flag for Player 2
+    li $t3, 0
+    sw $t3, player2_guarding
+
     lw $ra, 0($sp)
     addi $sp, $sp, 4
     jr $ra
 
 do_guard:
-    # Increase defense for this turn
+    # Increase defense for this turn and set guarding flag
     li $t0, 1
     beq $a0, $t0, player1_guards
-    
+
     # Player 2 guards
     la $a0, guard_msg
     li $v0, 4
     syscall
-    
+
     lw $t0, player2_defense
     addi $t0, $t0, 5  # Add 5 to defense when guarding
     sw $t0, player2_defense
-    
+
+    li $t1, 1
+    sw $t1, player2_guarding  # Set guarding flag for Player 2
+
     lw $ra, 0($sp)
     addi $sp, $sp, 4
     jr $ra
-    
+
 player1_guards:
     la $a0, guard_msg
     li $v0, 4
     syscall
-    
+
     lw $t0, player1_defense
     addi $t0, $t0, 5  # Add 5 to defense when guarding
     sw $t0, player1_defense
-    
+
+    li $t1, 1
+    sw $t1, player1_guarding  # Set guarding flag for Player 1
+
     lw $ra, 0($sp)
     addi $sp, $sp, 4
     jr $ra
@@ -550,7 +581,7 @@ display_skills:
     syscall
     
     # Prompt for skill choice
-    la $a0, choose_skills
+    la $a0, choose_available_skills
     li $v0, 4
     syscall
     
